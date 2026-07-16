@@ -36,6 +36,14 @@ export function weekdayLabelOfYmd(ymd: string): string {
   return weekdayFmt.format(new Date(`${ymd}T12:00:00+08:00`));
 }
 
+const WEEKDAY_CHARS = ["日", "一", "二", "三", "四", "五", "六"];
+
+/** 純日期字串（YYYY-MM-DD）→ 單字星期（給「7/16（四）」這種文案用） */
+export function weekdayCharOfYmd(ymd: string): string {
+  const anchor = new Date(`${ymd}T00:00:00Z`);
+  return WEEKDAY_CHARS[anchor.getUTCDay()];
+}
+
 /** 純日期字串（YYYY-MM-DD）→「7/16」 */
 export function monthDayLabelOfYmd(ymd: string): string {
   return monthDayFmt.format(new Date(`${ymd}T12:00:00+08:00`));
