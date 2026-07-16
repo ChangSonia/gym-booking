@@ -24,3 +24,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* iOS Safari 會把「19:00」這種文字誤判成電話號碼連結，format-detection meta 有時不夠力，這裡再擋一次 */
+a[href^="tel"],
+a[x-apple-data-detectors] {
+  color: inherit !important;
+  text-decoration: none !important;
+  pointer-events: none;
+  font: inherit !important;
+}
