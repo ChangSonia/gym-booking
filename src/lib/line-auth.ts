@@ -44,6 +44,15 @@ export async function resolveLineUser(idToken: string): Promise<AuthedUser> {
   return user;
 }
 
+// 教練權限一定要在後端驗證，前端說「我是教練」不算數
+export async function requireCoach(idToken: string): Promise<AuthedUser> {
+  const user = await resolveLineUser(idToken);
+  if (!user.is_coach && !user.is_admin) {
+    throw new AuthError("FORBIDDEN");
+  }
+  return user;
+}
+
 export async function getMyLiveBookings(userId: number): Promise<MyBooking[]> {
   const { data, error } = await supabaseAdmin
     .from("bookings")
