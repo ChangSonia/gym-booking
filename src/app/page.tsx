@@ -1,4 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import LiffLogin from "@/components/LiffLogin";
+
+export const dynamic = "force-dynamic";
 
 type SessionRow = {
   id: number;
@@ -33,6 +36,8 @@ export default async function Home() {
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>
         課表（測試讀取）
       </h1>
+
+      <LiffLogin />
 
       {error && (
         <p style={{ color: "#C8102E" }}>
