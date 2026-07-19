@@ -7,8 +7,10 @@ import { taipeiMonthDayTime } from "@/lib/date";
 
 function errorText(code?: string): string {
   switch (code) {
-    case "CAPACITY_CANNOT_DECREASE":
-      return "名額只能增加，不能減少";
+    case "CAPACITY_BELOW_CONFIRMED":
+      return "名額不能低於已報名人數";
+    case "INVALID_CAPACITY":
+      return "名額不能小於 1";
     case "SESSION_NOT_FOUND":
       return "找不到這堂課";
     case "FORBIDDEN":
@@ -57,9 +59,9 @@ export default function CoachSessionCard({
     }
   }
 
-  async function increaseCapacity() {
+  async function changeCapacity(delta: number) {
     await call(`/api/coach/sessions/${session.id}/capacity`, {
-      capacity: session.capacity + 1,
+      capacity: session.capacity + delta,
     });
   }
 
@@ -93,11 +95,18 @@ export default function CoachSessionCard({
           名額 {session.capacity} 人
         </span>
         <button
-          onClick={increaseCapacity}
+          onClick={() => changeCapacity(-1)}
+          disabled={busy || session.capacity - 1 < confirmedTotal}
+          className="rounded-md border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 disabled:opacity-30"
+        >
+          －1
+        </button>
+        <button
+          onClick={() => changeCapacity(1)}
           disabled={busy}
           className="rounded-md border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600"
         >
-          ＋1 名額
+          ＋1
         </button>
       </div>
 

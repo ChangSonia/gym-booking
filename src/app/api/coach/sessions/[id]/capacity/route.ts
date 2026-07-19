@@ -36,10 +36,29 @@ export async function POST(
     return NextResponse.json({ error: "SESSION_NOT_FOUND" }, { status: 404 });
   }
 
-  // 名額只增不減，這裡是最後一道防線（前端本來就不會讓人按出更小的數字）
-  if (capacity <= current.capacity) {
+  if (capacity < 1) {
+    return NextResponse.json({ error: "INVALID_CAPACITY" }, { status: 400 });
+  }
+
+  const { data: confirmedBookings, error: bookingsError } = await supabaseAdmin
+    .from("bookings")
+    .select("qty")
+    .eq("session_id", sessionId)
+    .eq("status", "confirmed");
+
+  if (bookingsError) {
+    return NextResponse.json({ error: bookingsError.message }, { status: 500 });
+  }
+
+  const confirmedTotal = (confirmedBookings ?? []).reduce(
+    (sum, b) => sum + b.qty,
+    0,
+  );
+
+  // 名額可以減少，但不能低於目前已確認的人數——這樣永遠不會有「要踢誰」的情況
+  if (capacity < confirmedTotal) {
     return NextResponse.json(
-      { error: "CAPACITY_CANNOT_DECREASE" },
+      { error: "CAPACITY_BELOW_CONFIRMED" },
       { status: 400 },
     );
   }
