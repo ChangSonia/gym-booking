@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { taipeiMonthDayTime } from "@/lib/date";
+import { taipeiWeekdayMonthDayTime } from "@/lib/date";
 
 // 推播失敗不該擋住報名/停課本身的流程（那些已經成功了），這裡只是盡力通知
 export async function sendLinePush(lineUserId: string, text: string): Promise<void> {
@@ -27,6 +27,32 @@ export async function sendLinePush(lineUserId: string, text: string): Promise<vo
   }
 }
 
+// 推播訊息裡的課程資訊統一格式：課名、教練、星期幾＋時間
+export function formatSessionLine(
+  title: string,
+  coachName: string | null,
+  startsAtIso: string,
+): string {
+  return `${title}　${coachName ?? "待定"}教練\n${taipeiWeekdayMonthDayTime(startsAtIso)}`;
+}
+
+type SessionWithCoach = {
+  title: string;
+  starts_at: string;
+  coaches: { name: string } | null;
+};
+
+export async function getSessionLineInfo(
+  sessionId: number,
+): Promise<SessionWithCoach | null> {
+  const { data } = await supabaseAdmin
+    .from("sessions")
+    .select("title, starts_at, coaches(name)")
+    .eq("id", sessionId)
+    .single<SessionWithCoach>();
+  return data ?? null;
+}
+
 // 取消/改人數之後，如果有候補的人遞補成正式報名，通知他們
 export async function notifyPromoted(
   sessionId: number,
@@ -34,11 +60,7 @@ export async function notifyPromoted(
 ): Promise<void> {
   if (promoted.length === 0) return;
 
-  const { data: sessionInfo } = await supabaseAdmin
-    .from("sessions")
-    .select("title, starts_at")
-    .eq("id", sessionId)
-    .single();
+  const sessionInfo = await getSessionLineInfo(sessionId);
   if (!sessionInfo) return;
 
   const userIds = promoted.map((b) => b.user_id);
@@ -48,11 +70,15 @@ export async function notifyPromoted(
     .in("id", userIds);
   if (!users) return;
 
-  const when = taipeiMonthDayTime(sessionInfo.starts_at);
+  const line = formatSessionLine(
+    sessionInfo.title,
+    sessionInfo.coaches?.name ?? null,
+    sessionInfo.starts_at,
+  );
   for (const u of users) {
     await sendLinePush(
       u.line_user_id,
-      `🎉 候補遞補成功\n${sessionInfo.title}　${when}\n你已經確認報名了！`,
+      `🎉 候補遞補成功\n${line}\n您已經確認報名了！`,
     );
   }
 }

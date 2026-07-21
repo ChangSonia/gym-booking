@@ -1,12 +1,13 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { sendLinePush } from "@/lib/line-messaging";
-import { taipeiTomorrowRangeISO, taipeiMonthDayTime } from "@/lib/date";
+import { sendLinePush, formatSessionLine } from "@/lib/line-messaging";
+import { taipeiTomorrowRangeISO } from "@/lib/date";
 
 type SessionRow = {
   id: number;
   title: string;
   starts_at: string;
+  coaches: { name: string } | null;
 };
 
 type BookingRow = {
@@ -20,7 +21,7 @@ export async function sendTomorrowReminders(): Promise<number> {
 
   const { data: sessions, error } = await supabaseAdmin
     .from("sessions")
-    .select("id, title, starts_at")
+    .select("id, title, starts_at, coaches(name)")
     .eq("status", "scheduled")
     .eq("archived", false)
     .eq("reminder_sent", false)
@@ -39,12 +40,16 @@ export async function sendTomorrowReminders(): Promise<number> {
       .eq("status", "confirmed")
       .returns<BookingRow[]>();
 
-    const when = taipeiMonthDayTime(session.starts_at);
+    const line = formatSessionLine(
+      session.title,
+      session.coaches?.name ?? null,
+      session.starts_at,
+    );
     for (const b of bookings ?? []) {
       if (b.users?.line_user_id) {
         await sendLinePush(
           b.users.line_user_id,
-          `⏰ 課前提醒\n${session.title}　${when}\n明天有你的課，別忘了！`,
+          `⏰ 課前提醒\n${line}\n明天有您的課，別忘了！`,
         );
       }
     }

@@ -57,15 +57,16 @@ export async function getScheduleDays(): Promise<DayGroup[]> {
   const weeksVisible = await getWeeksVisible();
   const days = weeksVisible * 7;
   const monday = taipeiThisMonday();
-  const start = taipeiDayBoundaryISO(monday);
   const end = taipeiDayBoundaryISO(ymdRange(monday, days + 1)[days]);
+  const nowIso = new Date().toISOString();
 
   const { data: sessions, error: sessionsError } = await supabaseAdmin
     .from("sessions")
     .select("id, title, starts_at, capacity, open_at")
     .eq("status", "scheduled")
     .eq("archived", false)
-    .gte("starts_at", start)
+    // 已經開始的課不顯示——不能只靠每天跑一次的歸檔工作，那個有一天的延遲
+    .gte("starts_at", nowIso)
     .lt("starts_at", end)
     .order("starts_at", { ascending: true })
     .returns<RawSession[]>();

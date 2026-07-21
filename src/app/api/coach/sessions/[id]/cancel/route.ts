@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireCoach, AuthError } from "@/lib/line-auth";
-import { sendLinePush } from "@/lib/line-messaging";
-import { taipeiMonthDayTime } from "@/lib/date";
+import { sendLinePush, formatSessionLine, getSessionLineInfo } from "@/lib/line-messaging";
 
 export async function POST(
   req: NextRequest,
@@ -37,11 +36,7 @@ export async function POST(
   }
 
   // 通知所有被停課退掉的人（原本 confirmed/waitlisted，現在變 session_cancelled）
-  const { data: sessionInfo } = await supabaseAdmin
-    .from("sessions")
-    .select("title, starts_at")
-    .eq("id", sessionId)
-    .single();
+  const sessionInfo = await getSessionLineInfo(sessionId);
 
   const { data: affected } = await supabaseAdmin
     .from("bookings")
@@ -50,14 +45,18 @@ export async function POST(
     .eq("status", "session_cancelled");
 
   if (sessionInfo && affected) {
-    const when = taipeiMonthDayTime(sessionInfo.starts_at);
+    const line = formatSessionLine(
+      sessionInfo.title,
+      sessionInfo.coaches?.name ?? null,
+      sessionInfo.starts_at,
+    );
     for (const b of affected as unknown as {
       users: { line_user_id: string } | null;
     }[]) {
       if (b.users?.line_user_id) {
         await sendLinePush(
           b.users.line_user_id,
-          `🚫 停課通知\n${sessionInfo.title}　${when}\n這堂課停課了，你的名額已經保留，恢復開課會再通知你。`,
+          `🚫 停課通知\n${line}\n已經停課，若恢復開課會再通知您，造成不便敬請見諒！`,
         );
       }
     }

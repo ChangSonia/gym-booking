@@ -57,6 +57,12 @@ export function taipeiMonthDayTime(iso: string): string {
   return `${monthDayFmt.format(new Date(iso))} ${timeFmt.format(new Date(iso))}`;
 }
 
+/** timestamptz(ISO) →「7/20（一）11:00」，推播訊息統一用這個格式 */
+export function taipeiWeekdayMonthDayTime(iso: string): string {
+  const ymd = taipeiYmd(iso);
+  return `${monthDayFmt.format(new Date(iso))}（${weekdayCharOfYmd(ymd)}）${timeFmt.format(new Date(iso))}`;
+}
+
 function addDaysToYmd(ymd: string, days: number): string {
   const anchor = new Date(`${ymd}T00:00:00Z`);
   anchor.setUTCDate(anchor.getUTCDate() + days);

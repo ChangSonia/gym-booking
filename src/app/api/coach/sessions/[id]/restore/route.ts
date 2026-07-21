@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireCoach, AuthError } from "@/lib/line-auth";
-import { sendLinePush } from "@/lib/line-messaging";
-import { taipeiMonthDayTime } from "@/lib/date";
+import { sendLinePush, formatSessionLine, getSessionLineInfo } from "@/lib/line-messaging";
 
 export async function POST(
   req: NextRequest,
@@ -43,21 +42,21 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const { data: sessionInfo } = await supabaseAdmin
-    .from("sessions")
-    .select("title, starts_at")
-    .eq("id", sessionId)
-    .single();
+  const sessionInfo = await getSessionLineInfo(sessionId);
 
   if (sessionInfo && toRestore) {
-    const when = taipeiMonthDayTime(sessionInfo.starts_at);
+    const line = formatSessionLine(
+      sessionInfo.title,
+      sessionInfo.coaches?.name ?? null,
+      sessionInfo.starts_at,
+    );
     for (const b of toRestore as unknown as {
       users: { line_user_id: string } | null;
     }[]) {
       if (b.users?.line_user_id) {
         await sendLinePush(
           b.users.line_user_id,
-          `✅ 恢復開課\n${sessionInfo.title}　${when}\n這堂課恢復了，你的報名／候補原樣保留。`,
+          `✅ 恢復開課通知\n${line}\n已經恢復開課，您之前的報名／候補已經保留。`,
         );
       }
     }
