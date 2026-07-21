@@ -234,7 +234,7 @@ export default function CoachSessionCard({
 
       {err && !editing && <p className="mb-2 text-xs text-[#C8102E]">{err}</p>}
 
-      <div className="mt-1 flex gap-1.5">
+      <div className="mt-1 flex items-center gap-1.5">
         <button
           onClick={openEdit}
           disabled={busy}
@@ -251,6 +251,23 @@ export default function CoachSessionCard({
             代報名
           </button>
         )}
+        {session.status === "scheduled" ? (
+          <button
+            onClick={() => setConfirmCancel(true)}
+            disabled={busy}
+            className="ml-auto rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#C8102E]"
+          >
+            停課
+          </button>
+        ) : (
+          <button
+            onClick={restoreSession}
+            disabled={busy}
+            className="ml-auto rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white"
+          >
+            恢復
+          </button>
+        )}
       </div>
 
       {editing && (
@@ -259,60 +276,120 @@ export default function CoachSessionCard({
           onClick={() => !busy && setEditing(false)}
         >
           <div
-            className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl"
+            className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-2xl bg-white sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-bold">編輯課程</h2>
-            <p className="mb-4 text-sm text-gray-500">
-              {session.title}・{taipeiMonthDayTime(session.starts_at)}
-            </p>
+            <div className="overflow-y-auto p-5 pb-0">
+              <h2 className="mb-1 text-lg font-bold">編輯課程</h2>
+              <p className="mb-4 text-sm text-gray-500">
+                {session.title}・{taipeiMonthDayTime(session.starts_at)}
+              </p>
 
-            <div className="mb-4 flex items-end gap-3">
-              <div>
-                <label className="mb-2 block text-sm text-gray-600">名額</label>
-                <div className="flex items-center gap-0">
-                  <button
-                    onClick={() => setEditCapacity((c) => Math.max(1, c - 1))}
-                    disabled={editCapacity <= confirmedTotal}
-                    className="h-11 w-11 rounded-l-xl border border-gray-200 text-xl disabled:text-gray-300"
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-2 block text-sm text-gray-600">名額</label>
+                  <div className="flex items-center gap-0">
+                    <button
+                      onClick={() => setEditCapacity((c) => Math.max(1, c - 1))}
+                      disabled={editCapacity <= confirmedTotal}
+                      className="h-11 flex-1 rounded-l-xl border border-gray-200 text-xl disabled:text-gray-300"
+                    >
+                      －
+                    </button>
+                    <span className="flex h-11 flex-1 items-center justify-center border-y border-gray-200 font-mono text-lg font-semibold">
+                      {editCapacity}
+                    </span>
+                    <button
+                      onClick={() => setEditCapacity((c) => Math.min(MAXCAP, c + 1))}
+                      disabled={editCapacity >= MAXCAP}
+                      className="h-11 flex-1 rounded-r-xl border border-gray-200 text-xl disabled:text-gray-300"
+                    >
+                      ＋
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-gray-600">教練</label>
+                  <select
+                    value={editCoachId ?? ""}
+                    onChange={(e) =>
+                      setEditCoachId(
+                        e.target.value === "" ? null : Number(e.target.value),
+                      )
+                    }
+                    className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
                   >
-                    －
-                  </button>
-                  <span className="flex h-11 w-14 items-center justify-center border-y border-gray-200 font-mono text-lg font-semibold">
-                    {editCapacity}
-                  </span>
-                  <button
-                    onClick={() => setEditCapacity((c) => Math.min(MAXCAP, c + 1))}
-                    disabled={editCapacity >= MAXCAP}
-                    className="h-11 w-11 rounded-r-xl border border-gray-200 text-xl disabled:text-gray-300"
-                  >
-                    ＋
-                  </button>
+                    <option value="">待定</option>
+                    {(coachOptions ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="flex-1">
-                <label className="mb-2 block text-sm text-gray-600">教練</label>
-                <select
-                  value={editCoachId ?? ""}
-                  onChange={(e) =>
-                    setEditCoachId(e.target.value === "" ? null : Number(e.target.value))
-                  }
-                  className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
-                >
-                  <option value="">待定</option>
-                  {(coachOptions ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+              {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
+
+              <div className="border-t border-gray-100 pt-4">
+                <p className="mb-1 text-sm font-semibold text-gray-600">
+                  已報名 {confirmedTotal} 人
+                </p>
+                {confirmed.length === 0 ? (
+                  <p className="mb-3 text-sm text-gray-300">還沒有人報名</p>
+                ) : (
+                  <ul className="mb-3 flex flex-col gap-1">
+                    {confirmed.map((b) => (
+                      <li
+                        key={b.id}
+                        className="flex items-center gap-2 text-base text-gray-700"
+                      >
+                        <span className="flex-1">
+                          {b.display_name ?? "（無名稱）"}
+                          {b.qty > 1 ? ` · ${b.qty} 位` : ""}
+                        </span>
+                        <button
+                          onClick={() => setKickTarget(b)}
+                          className="shrink-0 text-xs font-medium text-gray-400"
+                        >
+                          刪除
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {waitlisted.length > 0 && (
+                  <>
+                    <p className="mb-1 text-sm font-semibold text-[#8A5D00]">
+                      候補 {waitlistedTotal} 人
+                    </p>
+                    <ul className="mb-3 flex flex-col gap-1">
+                      {waitlisted.map((b) => (
+                        <li
+                          key={b.id}
+                          className="flex items-center gap-2 text-base text-gray-700"
+                        >
+                          <span className="flex-1">
+                            {b.wl_position}. {b.display_name ?? "（無名稱）"}
+                            {b.qty > 1 ? ` · ${b.qty} 位` : ""}
+                          </span>
+                          <button
+                            onClick={() => setKickTarget(b)}
+                            className="shrink-0 text-xs font-medium text-gray-400"
+                          >
+                            刪除
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </div>
             </div>
 
-            {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
-
-            <div className="mb-4 flex gap-3">
+            <div className="flex shrink-0 gap-3 p-5">
               <button
                 onClick={() => setEditing(false)}
                 disabled={busy}
@@ -327,80 +404,6 @@ export default function CoachSessionCard({
               >
                 {busy ? "處理中..." : "確認"}
               </button>
-            </div>
-
-            <div className="border-t border-gray-100 pt-4">
-              <p className="mb-1 text-sm font-semibold text-gray-600">
-                已報名 {confirmedTotal} 人
-              </p>
-              {confirmed.length === 0 ? (
-                <p className="mb-3 text-sm text-gray-300">還沒有人報名</p>
-              ) : (
-                <ul className="mb-3 flex flex-col gap-1">
-                  {confirmed.map((b) => (
-                    <li
-                      key={b.id}
-                      className="flex items-center gap-2 text-base text-gray-700"
-                    >
-                      <span className="flex-1">
-                        {b.display_name ?? "（無名稱）"}
-                        {b.qty > 1 ? ` · ${b.qty} 位` : ""}
-                      </span>
-                      <button
-                        onClick={() => setKickTarget(b)}
-                        className="shrink-0 text-xs font-medium text-gray-400"
-                      >
-                        取消
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {waitlisted.length > 0 && (
-                <>
-                  <p className="mb-1 text-sm font-semibold text-[#8A5D00]">
-                    候補 {waitlistedTotal} 人
-                  </p>
-                  <ul className="mb-3 flex flex-col gap-1">
-                    {waitlisted.map((b) => (
-                      <li
-                        key={b.id}
-                        className="flex items-center gap-2 text-base text-gray-700"
-                      >
-                        <span className="flex-1">
-                          {b.wl_position}. {b.display_name ?? "（無名稱）"}
-                          {b.qty > 1 ? ` · ${b.qty} 位` : ""}
-                        </span>
-                        <button
-                          onClick={() => setKickTarget(b)}
-                          className="shrink-0 text-xs font-medium text-gray-400"
-                        >
-                          取消
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {session.status === "scheduled" ? (
-                <button
-                  onClick={() => setConfirmCancel(true)}
-                  disabled={busy}
-                  className="h-[46px] w-full rounded-xl border border-gray-200 text-[15px] font-medium text-[#C8102E]"
-                >
-                  停課
-                </button>
-              ) : (
-                <button
-                  onClick={restoreSession}
-                  disabled={busy}
-                  className="h-[46px] w-full rounded-xl bg-blue-600 text-[15px] font-semibold text-white"
-                >
-                  恢復
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -422,13 +425,10 @@ export default function CoachSessionCard({
 
             {!selectedUser ? (
               <>
-                <label className="mb-2 block text-sm text-gray-600">
-                  選會員（只能選已經登入過系統的人，可以打字縮小範圍）
-                </label>
                 <input
                   value={searchQuery}
                   onChange={(e) => onSearchInput(e.target.value)}
-                  placeholder="輸入名字關鍵字，或直接從下面選"
+                  placeholder="輸入名字"
                   className="mb-3 h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
                   autoFocus
                 />
@@ -585,7 +585,7 @@ export default function CoachSessionCard({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-1 text-lg font-bold">
-              {kickTarget.status === "waitlisted" ? "取消候補？" : "取消報名？"}
+              {kickTarget.status === "waitlisted" ? "刪除候補？" : "刪除報名？"}
             </h2>
             <p className="mb-4 text-sm text-gray-500">
               {kickTarget.display_name ?? "（無名稱）"}
@@ -605,7 +605,7 @@ export default function CoachSessionCard({
                 disabled={busy}
                 className="h-[46px] flex-1 rounded-xl bg-[#C8102E] text-[15px] font-semibold text-white"
               >
-                {busy ? "處理中..." : "確定取消"}
+                {busy ? "處理中..." : "確定刪除"}
               </button>
             </div>
           </div>
