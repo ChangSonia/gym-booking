@@ -21,11 +21,15 @@ function errorText(code?: string): string {
       return "人數不對，最多 4 位";
     case "ALREADY_BOOKED":
       return "已經報名過這堂課了";
+    case "NOT_ENOUGH_CAPACITY":
+      return "名額不夠，改不了這麼多人";
+    case "BOOKING_NOT_EDITABLE":
+      return "這筆報名沒辦法編輯";
     case "SESSION_NOT_FOUND":
     case "BOOKING_NOT_FOUND":
       return "找不到這堂課";
     case "FORBIDDEN":
-      return "沒有權限取消";
+      return "沒有權限操作";
     default:
       return "操作失敗，請稍後再試";
   }
@@ -52,7 +56,7 @@ export default function SessionCard({
 }: Props) {
   const auth = useLiffAuth();
   const [qty, setQty] = useState(1);
-  const [modal, setModal] = useState<"book" | "cancel" | null>(null);
+  const [modal, setModal] = useState<"book" | "edit" | "cancel" | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -78,6 +82,27 @@ export default function SessionCard({
       await auth.refresh();
       setModal(null);
       setQty(1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "操作失敗，請稍後再試");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function editQty() {
+    if (auth.status !== "ready" || !myBooking) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/bookings/${myBooking.id}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: auth.idToken, qty }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(errorText(json.error));
+      await auth.refresh();
+      setModal(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "操作失敗，請稍後再試");
     } finally {
@@ -148,12 +173,23 @@ export default function SessionCard({
                 : `前面尚有 ${Math.max(0, (myBooking.wl_position ?? 1) - 1)} 位候補`}
             </div>
           </div>
-          <button
-            onClick={() => setModal("cancel")}
-            className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500"
-          >
-            {myBooking.status === "confirmed" ? "取消報名" : "取消候補"}
-          </button>
+          <div className="flex shrink-0 gap-1.5">
+            <button
+              onClick={() => {
+                setQty(myBooking.qty);
+                setModal("edit");
+              }}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500"
+            >
+              編輯
+            </button>
+            <button
+              onClick={() => setModal("cancel")}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500"
+            >
+              {myBooking.status === "confirmed" ? "取消報名" : "取消候補"}
+            </button>
+          </div>
         </div>
       ) : status === "not_open" ? (
         <button
@@ -226,6 +262,62 @@ export default function SessionCard({
                 }`}
               >
                 {busy ? "處理中..." : willWaitlist ? "確認候補" : "確認報名"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === "edit" && myBooking && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+          onClick={() => !busy && setModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 text-lg font-bold">
+              {myBooking.status === "waitlisted" ? "編輯候補" : "編輯報名"}
+            </h2>
+            <p className="mb-4 text-sm text-gray-500">
+              {title} · {dateTimeLabel}
+            </p>
+            <label className="mb-2 block text-sm text-gray-600">
+              {myBooking.status === "waitlisted" ? "欲候補人數" : "報名人數"}
+            </label>
+            <div className="mb-4 flex items-center gap-4">
+              <button
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+                className="h-10 w-10 rounded-full border border-gray-200 text-lg"
+              >
+                －
+              </button>
+              <span className="w-8 text-center text-lg font-semibold">
+                {qty}
+              </span>
+              <button
+                onClick={() => setQty((q) => Math.min(4, q + 1))}
+                className="h-10 w-10 rounded-full border border-gray-200 text-lg"
+              >
+                ＋
+              </button>
+            </div>
+            {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setModal(null)}
+                disabled={busy}
+                className="h-[46px] flex-1 rounded-xl border border-gray-200 text-[15px] font-medium text-gray-600"
+              >
+                取消
+              </button>
+              <button
+                onClick={editQty}
+                disabled={busy || qty === myBooking.qty}
+                className="h-[46px] flex-1 rounded-xl bg-blue-600 text-[15px] font-semibold text-white disabled:opacity-50"
+              >
+                {busy ? "處理中..." : "確認修改"}
               </button>
             </div>
           </div>

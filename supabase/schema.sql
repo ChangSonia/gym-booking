@@ -219,8 +219,11 @@ begin
     exit when not found;
     exit when v_next.qty > v_session.capacity - v_used;   -- 塞不下 → 停，不跳號
 
+    -- 用 returning 抓更新後的最新狀態，不要回傳更新前的舊快照
+    -- （v_next 是 update 之前 select 進來的，update 完不會自動跟著變）
     update bookings set status='confirmed', wl_position=null, updated_at=now()
-      where id = v_next.id;
+      where id = v_next.id
+      returning * into v_next;
 
     -- 重排剩下的順位
     with ranked as (
@@ -258,6 +261,55 @@ begin
   if v_booking.status = 'confirmed' then
     return query select * from promote_waitlist(v_booking.session_id);
   end if;
+end;
+$$ language plpgsql;
+
+
+-- ═══════════════════════════════════════════════════════════
+--  改報名/候補人數（會員自己編輯）
+--  confirmed 改人數要重新檢查名額（跟 book_session 一樣鎖 session）；
+--  減少人數可能空出名額，改完一律跑一次 promote_waitlist。
+--  waitlisted 改人數不影響別人，不用檢查名額，但一樣跑 promote_waitlist
+--  確保如果剛好排到他、名額又夠，直接遞補。
+-- ═══════════════════════════════════════════════════════════
+create or replace function edit_booking_qty(
+  p_booking_id bigint,
+  p_actor_id   bigint,
+  p_qty        int
+) returns setof bookings as $$
+declare
+  v_booking  bookings%rowtype;
+  v_session  sessions%rowtype;
+  v_used     int;
+begin
+  if p_qty < 1 or p_qty > 4 then
+    raise exception 'INVALID_QTY';
+  end if;
+
+  select * into v_booking from bookings where id = p_booking_id;
+  if not found then raise exception 'BOOKING_NOT_FOUND'; end if;
+  if v_booking.status not in ('confirmed','waitlisted') then
+    raise exception 'BOOKING_NOT_EDITABLE';
+  end if;
+
+  select * into v_session from sessions where id = v_booking.session_id for update;
+
+  if v_booking.status = 'confirmed' then
+    select coalesce(sum(b.qty),0) into v_used
+      from bookings b
+      where b.session_id = v_booking.session_id
+        and b.status = 'confirmed'
+        and b.id <> p_booking_id;
+
+    if p_qty > v_session.capacity - v_used then
+      raise exception 'NOT_ENOUGH_CAPACITY';
+    end if;
+  end if;
+
+  update bookings set qty = p_qty, updated_at = now() where id = p_booking_id;
+
+  return query select * from bookings where id = p_booking_id;
+  return query select * from promote_waitlist(v_booking.session_id);
 end;
 $$ language plpgsql;
 

@@ -9,10 +9,13 @@ export async function POST(
 ) {
   const { id } = await params;
   const bookingId = Number(id);
-  const { idToken } = await req.json();
+  const { idToken, qty } = await req.json();
 
-  if (!idToken || !Number.isInteger(bookingId)) {
+  if (!idToken || !Number.isInteger(bookingId) || !Number.isInteger(qty)) {
     return NextResponse.json({ error: "MISSING_FIELDS" }, { status: 400 });
+  }
+  if (qty < 1 || qty > 4) {
+    return NextResponse.json({ error: "INVALID_QTY" }, { status: 400 });
   }
 
   let user;
@@ -25,7 +28,7 @@ export async function POST(
     return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
   }
 
-  // 只能取消自己的報名——絕對不能信任前端傳來的 booking id 就直接放行
+  // 只能改自己的報名——絕對不能信任前端傳來的 booking id 就直接放行
   const { data: booking, error: fetchError } = await supabaseAdmin
     .from("bookings")
     .select("id, user_id, session_id")
@@ -39,16 +42,21 @@ export async function POST(
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
-  const { data: promoted, error } = await supabaseAdmin.rpc("cancel_booking", {
+  const { data: rows, error } = await supabaseAdmin.rpc("edit_booking_qty", {
     p_booking_id: bookingId,
     p_actor_id: user.id,
+    p_qty: qty,
   });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  await notifyPromoted(booking.session_id, promoted ?? []);
+  // edit_booking_qty 回傳「自己那筆」+「因此被遞補的候補」，濾掉自己那筆才是被遞補的人
+  const promoted = (rows ?? []).filter(
+    (r: { id: number }) => r.id !== bookingId,
+  );
+  await notifyPromoted(booking.session_id, promoted);
 
   return NextResponse.json({ ok: true });
 }
