@@ -13,6 +13,12 @@ export type CoachSession = {
   capacity: number;
   status: "scheduled" | "cancelled";
   open_at: string;
+  coachId: number | null;
   coachName: string | null;
   bookings: RosterBooking[];
+};
+
+export type CoachOption = {
+  id: number;
+  name: string;
 };

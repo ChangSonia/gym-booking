@@ -82,3 +82,25 @@ export async function notifyPromoted(
     );
   }
 }
+
+// 通知一堂課所有 confirmed/waitlisted 的人（例如換教練時）
+export async function notifySessionMembers(
+  sessionId: number,
+  text: string,
+): Promise<void> {
+  const { data: bookings } = await supabaseAdmin
+    .from("bookings")
+    .select("users!bookings_user_id_fkey(line_user_id)")
+    .eq("session_id", sessionId)
+    .in("status", ["confirmed", "waitlisted"]);
+
+  if (!bookings) return;
+
+  for (const b of bookings as unknown as {
+    users: { line_user_id: string } | null;
+  }[]) {
+    if (b.users?.line_user_id) {
+      await sendLinePush(b.users.line_user_id, text);
+    }
+  }
+}

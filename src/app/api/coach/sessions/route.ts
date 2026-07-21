@@ -10,6 +10,7 @@ type RawRow = {
   capacity: number;
   status: "scheduled" | "cancelled";
   open_at: string;
+  coach_id: number | null;
   coaches: { name: string } | null;
   bookings: {
     id: number;
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("sessions")
     .select(
-      "id, title, starts_at, capacity, status, open_at, coaches(name), bookings(id, qty, status, wl_position, users!bookings_user_id_fkey(display_name))",
+      "id, title, starts_at, capacity, status, open_at, coach_id, coaches(name), bookings(id, qty, status, wl_position, users!bookings_user_id_fkey(display_name))",
     )
     .eq("archived", false)
     .gte("starts_at", nowIso)
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     capacity: s.capacity,
     status: s.status,
     open_at: s.open_at,
+    coachId: s.coach_id,
     coachName: s.coaches?.name ?? null,
     bookings: (s.bookings ?? [])
       .filter((b) => b.status === "confirmed" || b.status === "waitlisted")
