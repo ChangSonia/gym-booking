@@ -267,45 +267,48 @@ export default function CoachSessionCard({
               {session.title}・{taipeiMonthDayTime(session.starts_at)}
             </p>
 
-            <label className="mb-2 block text-sm text-gray-600">名額</label>
-            <div className="mb-1 flex items-center gap-0">
-              <button
-                onClick={() => setEditCapacity((c) => Math.max(1, c - 1))}
-                disabled={editCapacity <= confirmedTotal}
-                className="h-11 w-11 rounded-l-xl border border-gray-200 text-xl disabled:text-gray-300"
-              >
-                －
-              </button>
-              <span className="flex h-11 w-16 items-center justify-center border-y border-gray-200 font-mono text-lg font-semibold">
-                {editCapacity}
-              </span>
-              <button
-                onClick={() => setEditCapacity((c) => Math.min(MAXCAP, c + 1))}
-                disabled={editCapacity >= MAXCAP}
-                className="h-11 w-11 rounded-r-xl border border-gray-200 text-xl disabled:text-gray-300"
-              >
-                ＋
-              </button>
-            </div>
-            <p className="mb-4 text-xs text-gray-400">
-              已報名 {confirmedTotal} 人，名額不能改到比這個少
-            </p>
+            <div className="mb-4 flex items-end gap-3">
+              <div>
+                <label className="mb-2 block text-sm text-gray-600">名額</label>
+                <div className="flex items-center gap-0">
+                  <button
+                    onClick={() => setEditCapacity((c) => Math.max(1, c - 1))}
+                    disabled={editCapacity <= confirmedTotal}
+                    className="h-11 w-11 rounded-l-xl border border-gray-200 text-xl disabled:text-gray-300"
+                  >
+                    －
+                  </button>
+                  <span className="flex h-11 w-14 items-center justify-center border-y border-gray-200 font-mono text-lg font-semibold">
+                    {editCapacity}
+                  </span>
+                  <button
+                    onClick={() => setEditCapacity((c) => Math.min(MAXCAP, c + 1))}
+                    disabled={editCapacity >= MAXCAP}
+                    className="h-11 w-11 rounded-r-xl border border-gray-200 text-xl disabled:text-gray-300"
+                  >
+                    ＋
+                  </button>
+                </div>
+              </div>
 
-            <label className="mb-2 block text-sm text-gray-600">教練</label>
-            <select
-              value={editCoachId ?? ""}
-              onChange={(e) =>
-                setEditCoachId(e.target.value === "" ? null : Number(e.target.value))
-              }
-              className="mb-4 h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
-            >
-              <option value="">待定</option>
-              {(coachOptions ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              <div className="flex-1">
+                <label className="mb-2 block text-sm text-gray-600">教練</label>
+                <select
+                  value={editCoachId ?? ""}
+                  onChange={(e) =>
+                    setEditCoachId(e.target.value === "" ? null : Number(e.target.value))
+                  }
+                  className="h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
+                >
+                  <option value="">待定</option>
+                  {(coachOptions ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
 
@@ -327,17 +330,17 @@ export default function CoachSessionCard({
             </div>
 
             <div className="border-t border-gray-100 pt-4">
-              <p className="mb-1 text-xs font-semibold text-gray-500">
+              <p className="mb-1 text-sm font-semibold text-gray-600">
                 已報名 {confirmedTotal} 人
               </p>
               {confirmed.length === 0 ? (
-                <p className="mb-3 text-xs text-gray-300">還沒有人報名</p>
+                <p className="mb-3 text-sm text-gray-300">還沒有人報名</p>
               ) : (
-                <ul className="mb-3 flex flex-col gap-0.5">
+                <ul className="mb-3 flex flex-col gap-1">
                   {confirmed.map((b) => (
                     <li
                       key={b.id}
-                      className="flex items-center gap-2 text-sm text-gray-700"
+                      className="flex items-center gap-2 text-base text-gray-700"
                     >
                       <span className="flex-1">
                         {b.display_name ?? "（無名稱）"}
@@ -356,14 +359,14 @@ export default function CoachSessionCard({
 
               {waitlisted.length > 0 && (
                 <>
-                  <p className="mb-1 text-xs font-semibold text-[#8A5D00]">
+                  <p className="mb-1 text-sm font-semibold text-[#8A5D00]">
                     候補 {waitlistedTotal} 人
                   </p>
-                  <ul className="mb-3 flex flex-col gap-0.5">
+                  <ul className="mb-3 flex flex-col gap-1">
                     {waitlisted.map((b) => (
                       <li
                         key={b.id}
-                        className="flex items-center gap-2 text-sm text-gray-700"
+                        className="flex items-center gap-2 text-base text-gray-700"
                       >
                         <span className="flex-1">
                           {b.wl_position}. {b.display_name ?? "（無名稱）"}
@@ -385,7 +388,7 @@ export default function CoachSessionCard({
                 <button
                   onClick={() => setConfirmCancel(true)}
                   disabled={busy}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#C8102E]"
+                  className="h-[46px] w-full rounded-xl border border-gray-200 text-[15px] font-medium text-[#C8102E]"
                 >
                   停課
                 </button>
@@ -393,7 +396,7 @@ export default function CoachSessionCard({
                 <button
                   onClick={restoreSession}
                   disabled={busy}
-                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white"
+                  className="h-[46px] w-full rounded-xl bg-blue-600 text-[15px] font-semibold text-white"
                 >
                   恢復
                 </button>
