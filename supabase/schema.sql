@@ -64,6 +64,7 @@ create table sessions (
   status      text not null default 'scheduled'
               check (status in ('scheduled','cancelled')),
   archived    boolean not null default false,-- 過期歸檔，不刪
+  reminder_sent boolean not null default false, -- 課前一天提醒發過了沒，避免重複發
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

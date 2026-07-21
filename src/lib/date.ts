@@ -81,3 +81,14 @@ export function ymdRange(startYmd: string, days: number): string[] {
 export function taipeiDayBoundaryISO(ymd: string): string {
   return `${ymd}T00:00:00+08:00`;
 }
+
+/** 「明天」這一整個台北日曆日的起訖邊界（給課前提醒用） */
+export function taipeiTomorrowRangeISO(): { start: string; end: string } {
+  const todayYmd = ymdFmt.format(new Date());
+  const tomorrowYmd = addDaysToYmd(todayYmd, 1);
+  const dayAfterYmd = addDaysToYmd(todayYmd, 2);
+  return {
+    start: taipeiDayBoundaryISO(tomorrowYmd),
+    end: taipeiDayBoundaryISO(dayAfterYmd),
+  };
+}

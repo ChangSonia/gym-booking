@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sendTomorrowReminders } from "@/lib/reminders";
 
 // Vercel Cron 每天固定時間打這支 API（見 vercel.json），
 // 自動帶 Authorization: Bearer <CRON_SECRET> —— 防止別人亂打這個 endpoint
@@ -34,5 +35,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: archiveError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ generated, archived });
+  let reminded = 0;
+  try {
+    reminded = await sendTomorrowReminders();
+  } catch (e) {
+    console.error("sendTomorrowReminders failed", e);
+  }
+
+  return NextResponse.json({ generated, archived, reminded });
 }
