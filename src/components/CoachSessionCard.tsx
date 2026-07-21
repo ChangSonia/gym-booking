@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLiffAuth } from "@/components/LiffAuthProvider";
 import type { CoachSession } from "@/lib/coach-types";
 import { taipeiMonthDayTime } from "@/lib/date";
@@ -32,6 +32,13 @@ export default function CoachSessionCard({
   const [err, setErr] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
 
+  // 樂觀更新：畫面先變，請求在背景跑，不用每次都等「驗證身分＋重抓整份清單」跑完才有反應
+  const [localCapacity, setLocalCapacity] = useState(session.capacity);
+  const [capacityBusy, setCapacityBusy] = useState(false);
+  useEffect(() => {
+    setLocalCapacity(session.capacity);
+  }, [session.capacity]);
+
   const confirmed = session.bookings.filter((b) => b.status === "confirmed");
   const waitlisted = session.bookings
     .filter((b) => b.status === "waitlisted")
@@ -60,9 +67,26 @@ export default function CoachSessionCard({
   }
 
   async function changeCapacity(delta: number) {
-    await call(`/api/coach/sessions/${session.id}/capacity`, {
-      capacity: session.capacity + delta,
-    });
+    if (auth.status !== "ready" || capacityBusy) return;
+    const next = localCapacity + delta;
+    const prev = localCapacity;
+    setLocalCapacity(next);
+    setCapacityBusy(true);
+    setErr("");
+    try {
+      const res = await fetch(`/api/coach/sessions/${session.id}/capacity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: auth.idToken, capacity: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(errorText(json.error));
+    } catch (e) {
+      setLocalCapacity(prev);
+      setErr(e instanceof Error ? e.message : "操作失敗，請稍後再試");
+    } finally {
+      setCapacityBusy(false);
+    }
   }
 
   async function cancelSession() {
@@ -95,17 +119,17 @@ export default function CoachSessionCard({
         <div className="flex items-center overflow-hidden rounded-lg border border-gray-200">
           <button
             onClick={() => changeCapacity(-1)}
-            disabled={busy || session.capacity - 1 < confirmedTotal}
+            disabled={capacityBusy || localCapacity - 1 < confirmedTotal}
             className="flex h-7 w-7 items-center justify-center text-sm font-medium text-gray-600 disabled:opacity-30"
           >
             －
           </button>
           <span className="min-w-[2rem] text-center text-sm font-semibold text-gray-900">
-            {session.capacity}
+            {localCapacity}
           </span>
           <button
             onClick={() => changeCapacity(1)}
-            disabled={busy}
+            disabled={capacityBusy}
             className="flex h-7 w-7 items-center justify-center text-sm font-medium text-gray-600"
           >
             ＋

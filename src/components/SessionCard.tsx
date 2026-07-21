@@ -197,8 +197,10 @@ export default function SessionCard({
           className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[13.5px] disabled:cursor-default ${chipColorClasses[status]}`}
         >
           <span className="shrink-0 font-mono text-[13px] font-semibold">{time}</span>
-          <span className="min-w-0 flex-1 truncate font-bold text-gray-900">{title}</span>
-          <span className="shrink-0 truncate text-xs text-gray-500">{coachText}</span>
+          <span className="min-w-0 flex-1 truncate">
+            <span className="font-bold text-gray-900">{title}</span>
+            <span className="ml-1 text-xs text-gray-500">{coachText}</span>
+          </span>
           {myBooking && (
             <span
               className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-white ${
@@ -334,10 +336,7 @@ export default function SessionCard({
                 {sheetWait ? (
                   `目前已額滿，${qty} 位一起候補`
                 ) : qty >= stepMax && stepMax < MAXQ ? (
-                  <>
-                    <b className="text-[#C8102E]">剩 {remaining} 位</b>
-                    ，最多只能報 {stepMax} 位
-                  </>
+                  <b className="text-[#C8102E]">目前本課程最多只能報 {stepMax} 位</b>
                 ) : (
                   `剩 ${remaining} 位`
                 )}
