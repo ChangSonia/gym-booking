@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sendTomorrowReminders } from "@/lib/reminders";
+import { generateSessions } from "@/lib/scheduler";
 
 // Vercel Cron 每天固定時間打這支 API（見 vercel.json），
 // 自動帶 Authorization: Bearer <CRON_SECRET> —— 防止別人亂打這個 endpoint
@@ -10,21 +11,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   }
 
-  const { data: weeksSetting } = await supabaseAdmin
-    .from("settings")
-    .select("value")
-    .eq("key", "weeks_generate")
-    .maybeSingle();
-
-  const weeks = weeksSetting?.value ? parseInt(weeksSetting.value, 10) : 3;
-
-  const { data: generated, error: generateError } = await supabaseAdmin.rpc(
-    "generate_sessions",
-    { p_weeks: Number.isFinite(weeks) && weeks > 0 ? weeks : 3 },
-  );
-
-  if (generateError) {
-    return NextResponse.json({ error: generateError.message }, { status: 500 });
+  let generated: number;
+  try {
+    generated = await generateSessions();
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "GENERATE_FAILED" },
+      { status: 500 },
+    );
   }
 
   const { data: archived, error: archiveError } = await supabaseAdmin.rpc(

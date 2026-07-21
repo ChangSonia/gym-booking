@@ -4,6 +4,7 @@ import { useLiffAuth } from "@/components/LiffAuthProvider";
 import LiffLogin from "@/components/LiffLogin";
 import NavTabs from "@/components/NavTabs";
 import CoachManager from "@/components/CoachManager";
+import CourseManager from "@/components/CourseManager";
 import UserPermissionManager from "@/components/UserPermissionManager";
 
 export default function AdminPage() {
@@ -29,6 +30,7 @@ export default function AdminPage() {
 
       {isAdmin && (
         <div className="flex flex-col gap-8">
+          <CourseManager />
           <CoachManager />
           <UserPermissionManager />
         </div>

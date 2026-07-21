@@ -12,3 +12,14 @@ export type AdminUserRow = {
   is_coach: boolean;
   is_admin: boolean;
 };
+
+export type CourseRow = {
+  id: number;
+  title: string;
+  coach_id: number | null;
+  coachName: string | null;
+  weekday: number; // 1=一...7=日
+  start_time: string; // "HH:MM:SS"
+  capacity: number;
+  active: boolean;
+};
