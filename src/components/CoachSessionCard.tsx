@@ -91,23 +91,27 @@ export default function CoachSessionCard({
       </div>
 
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-xs text-gray-600">
-          名額 {session.capacity} 人
-        </span>
-        <button
-          onClick={() => changeCapacity(-1)}
-          disabled={busy || session.capacity - 1 < confirmedTotal}
-          className="rounded-md border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600 disabled:opacity-30"
-        >
-          －1
-        </button>
-        <button
-          onClick={() => changeCapacity(1)}
-          disabled={busy}
-          className="rounded-md border border-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600"
-        >
-          ＋1
-        </button>
+        <span className="text-xs text-gray-600">名額</span>
+        <div className="flex items-center overflow-hidden rounded-lg border border-gray-200">
+          <button
+            onClick={() => changeCapacity(-1)}
+            disabled={busy || session.capacity - 1 < confirmedTotal}
+            className="flex h-7 w-7 items-center justify-center text-sm font-medium text-gray-600 disabled:opacity-30"
+          >
+            －
+          </button>
+          <span className="min-w-[2rem] text-center text-sm font-semibold text-gray-900">
+            {session.capacity}
+          </span>
+          <button
+            onClick={() => changeCapacity(1)}
+            disabled={busy}
+            className="flex h-7 w-7 items-center justify-center text-sm font-medium text-gray-600"
+          >
+            ＋
+          </button>
+        </div>
+        <span className="text-xs text-gray-400">人</span>
       </div>
 
       <div className="mb-2">
