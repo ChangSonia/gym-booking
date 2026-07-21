@@ -16,17 +16,27 @@ export type ChipStatus = "open" | "low" | "full" | "not_open";
 export type SessionChip = {
   id: number;
   title: string;
+  coachName: string | null;
   time: string;
   status: ChipStatus;
-  mainLabel: string;
-  subLabel: string;
+  remaining: number;
+  capacity: number;
+  waitlistedCount: number;
+  openAtLabel: string; // 「7/17 12:00」，未開放狀態的小字用
 };
 
 export type DayGroup = {
   ymd: string;
+  weekIndex: number;
   weekdayLabel: string;
   monthDayLabel: string;
   sessions: SessionChip[];
+};
+
+export type WeekMeta = {
+  index: number;
+  label: string; // 本週／下週／第三週...
+  rangeLabel: string; // 「7/14 – 7/20」
 };
 
 type RawSession = {
@@ -35,6 +45,7 @@ type RawSession = {
   starts_at: string;
   capacity: number;
   open_at: string;
+  coaches: { name: string } | null;
 };
 
 type RawBooking = {
@@ -54,7 +65,12 @@ async function getWeeksVisible(): Promise<number> {
   return Number.isFinite(n) && n > 0 ? n : 2;
 }
 
-export async function getScheduleDays(): Promise<DayGroup[]> {
+const WEEK_LABELS = ["本週", "下週", "第三週", "第四週", "第五週"];
+
+export async function getScheduleDays(): Promise<{
+  days: DayGroup[];
+  weeks: WeekMeta[];
+}> {
   const weeksVisible = await getWeeksVisible();
   const days = weeksVisible * 7;
   const monday = taipeiThisMonday();
@@ -63,7 +79,7 @@ export async function getScheduleDays(): Promise<DayGroup[]> {
 
   const { data: sessions, error: sessionsError } = await supabaseAdmin
     .from("sessions")
-    .select("id, title, starts_at, capacity, open_at")
+    .select("id, title, starts_at, capacity, open_at, coaches(name)")
     .eq("status", "scheduled")
     .eq("archived", false)
     // 已經開始的課不顯示——不能只靠每天跑一次的歸檔工作，那個有一天的延遲
@@ -104,36 +120,25 @@ export async function getScheduleDays(): Promise<DayGroup[]> {
     const ymd = taipeiYmd(s.starts_at);
     const used = usedBySession.get(s.id) ?? { confirmed: 0, waitlisted: 0 };
     const remaining = s.capacity - used.confirmed;
-
-    let status: ChipStatus;
-    let mainLabel: string;
-    let subLabel: string;
-
-    if (now < new Date(s.open_at)) {
-      status = "not_open";
-      mainLabel = "尚未開放報名";
-      subLabel = `${taipeiMonthDayTime(s.open_at)} 開放`;
-    } else if (remaining <= 0) {
-      status = "full";
-      mainLabel = "已額滿";
-      subLabel = used.waitlisted > 0 ? `${used.waitlisted} 人候補中` : "已額滿";
-    } else if (remaining <= 3) {
-      status = "low";
-      mainLabel = `剩 ${remaining} 位`;
-      subLabel = `上限 ${s.capacity} 人`;
-    } else {
-      status = "open";
-      mainLabel = `剩 ${remaining} 位`;
-      subLabel = `上限 ${s.capacity} 人`;
-    }
+    const status: ChipStatus =
+      now < new Date(s.open_at)
+        ? "not_open"
+        : remaining <= 0
+          ? "full"
+          : remaining <= 3
+            ? "low"
+            : "open";
 
     const chip: SessionChip = {
       id: s.id,
       title: s.title,
+      coachName: s.coaches?.name ?? null,
       time: taipeiTime(s.starts_at),
       status,
-      mainLabel,
-      subLabel,
+      remaining,
+      capacity: s.capacity,
+      waitlistedCount: used.waitlisted,
+      openAtLabel: taipeiMonthDayTime(s.open_at),
     };
 
     const arr = byYmd.get(ymd) ?? [];
@@ -142,14 +147,32 @@ export async function getScheduleDays(): Promise<DayGroup[]> {
   }
 
   const todayYmd = taipeiToday();
+  const mondayMs = new Date(`${monday}T00:00:00Z`).getTime();
 
   // 已經過去的日期不顯示（不是只藏課程，連那一天的列都不要出現）
-  return ymdRange(monday, days)
+  const dayGroups: DayGroup[] = ymdRange(monday, days)
     .filter((ymd) => ymd >= todayYmd)
-    .map((ymd) => ({
-      ymd,
-      weekdayLabel: weekdayLabelOfYmd(ymd),
-      monthDayLabel: monthDayLabelOfYmd(ymd),
-      sessions: byYmd.get(ymd) ?? [],
-    }));
+    .map((ymd) => {
+      const dayMs = new Date(`${ymd}T00:00:00Z`).getTime();
+      const weekIndex = Math.floor((dayMs - mondayMs) / (7 * 86400000));
+      return {
+        ymd,
+        weekIndex,
+        weekdayLabel: weekdayLabelOfYmd(ymd),
+        monthDayLabel: monthDayLabelOfYmd(ymd),
+        sessions: byYmd.get(ymd) ?? [],
+      };
+    });
+
+  const weeks: WeekMeta[] = Array.from({ length: weeksVisible }, (_, i) => {
+    const weekStartYmd = ymdRange(monday, days)[i * 7];
+    const weekEndYmd = ymdRange(monday, days)[i * 7 + 6];
+    return {
+      index: i,
+      label: WEEK_LABELS[i] ?? `第${i + 1}週`,
+      rangeLabel: `${monthDayLabelOfYmd(weekStartYmd)} – ${monthDayLabelOfYmd(weekEndYmd)}`,
+    };
+  });
+
+  return { days: dayGroups, weeks };
 }

@@ -74,14 +74,45 @@ export async function requireAdmin(idToken: string): Promise<AuthedUser> {
   return user;
 }
 
+type RawMyBooking = {
+  id: number;
+  session_id: number;
+  qty: number;
+  status: "confirmed" | "waitlisted";
+  wl_position: number | null;
+  sessions: {
+    title: string;
+    starts_at: string;
+    coaches: { name: string } | null;
+  } | null;
+};
+
 export async function getMyLiveBookings(userId: number): Promise<MyBooking[]> {
+  // 已經上過的課不顯示在「我的課表」，跟課表頁「不顯示過去」的規則一致
   const { data, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, session_id, qty, status, wl_position")
+    .select(
+      "id, session_id, qty, status, wl_position, sessions!inner(title, starts_at, coaches(name))",
+    )
     .eq("user_id", userId)
     .in("status", ["confirmed", "waitlisted"])
-    .returns<MyBooking[]>();
+    .gte("sessions.starts_at", new Date().toISOString())
+    .returns<RawMyBooking[]>();
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  return (data ?? []).map((b) => ({
+    id: b.id,
+    session_id: b.session_id,
+    qty: b.qty,
+    status: b.status,
+    wl_position: b.wl_position,
+    session: b.sessions
+      ? {
+          title: b.sessions.title,
+          starts_at: b.sessions.starts_at,
+          coachName: b.sessions.coaches?.name ?? null,
+        }
+      : null,
+  }));
 }

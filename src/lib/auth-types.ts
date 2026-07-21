@@ -13,4 +13,9 @@ export type MyBooking = {
   qty: number;
   status: "confirmed" | "waitlisted";
   wl_position: number | null;
+  session: {
+    title: string;
+    starts_at: string;
+    coachName: string | null;
+  } | null;
 };

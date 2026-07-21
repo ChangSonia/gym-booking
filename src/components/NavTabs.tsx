@@ -10,14 +10,14 @@ export default function NavTabs() {
   const isCoach =
     auth.status === "ready" && (auth.user.is_coach || auth.user.is_admin);
   const isAdmin = auth.status === "ready" && auth.user.is_admin;
+  const mineCount = auth.status === "ready" ? auth.bookings.length : 0;
 
   const tabs = [
-    { href: "/", label: "課表" },
-    ...(isCoach ? [{ href: "/coach", label: "教練" }] : []),
-    ...(isAdmin ? [{ href: "/admin", label: "管理" }] : []),
+    { href: "/", label: "課表", badge: null as number | null },
+    { href: "/mine", label: "我的課表", badge: mineCount },
+    ...(isCoach ? [{ href: "/coach", label: "教練", badge: null }] : []),
+    ...(isAdmin ? [{ href: "/admin", label: "管理", badge: null }] : []),
   ];
-
-  if (tabs.length < 2) return null;
 
   return (
     <nav className="mb-4 flex gap-1 border-b border-gray-100">
@@ -34,6 +34,11 @@ export default function NavTabs() {
             }`}
           >
             {t.label}
+            {!!t.badge && (
+              <span className="ml-1 rounded-full bg-green-600 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+                {t.badge}
+              </span>
+            )}
           </Link>
         );
       })}
