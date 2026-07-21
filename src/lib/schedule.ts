@@ -3,6 +3,7 @@ import {
   taipeiYmd,
   taipeiTime,
   taipeiMonthDayTime,
+  taipeiToday,
   weekdayLabelOfYmd,
   monthDayLabelOfYmd,
   taipeiThisMonday,
@@ -140,10 +141,15 @@ export async function getScheduleDays(): Promise<DayGroup[]> {
     byYmd.set(ymd, arr);
   }
 
-  return ymdRange(monday, days).map((ymd) => ({
-    ymd,
-    weekdayLabel: weekdayLabelOfYmd(ymd),
-    monthDayLabel: monthDayLabelOfYmd(ymd),
-    sessions: byYmd.get(ymd) ?? [],
-  }));
+  const todayYmd = taipeiToday();
+
+  // 已經過去的日期不顯示（不是只藏課程，連那一天的列都不要出現）
+  return ymdRange(monday, days)
+    .filter((ymd) => ymd >= todayYmd)
+    .map((ymd) => ({
+      ymd,
+      weekdayLabel: weekdayLabelOfYmd(ymd),
+      monthDayLabel: monthDayLabelOfYmd(ymd),
+      sessions: byYmd.get(ymd) ?? [],
+    }));
 }

@@ -38,12 +38,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
   }
 
+  // 已經開始的場次不顯示，不用等每天一次的歸檔工作
+  const nowIso = new Date().toISOString();
+
   const { data, error } = await supabaseAdmin
     .from("sessions")
     .select(
       "id, title, starts_at, capacity, status, open_at, coaches(name), bookings(id, qty, status, wl_position, users!bookings_user_id_fkey(display_name))",
     )
     .eq("archived", false)
+    .gte("starts_at", nowIso)
     .order("starts_at", { ascending: true })
     .limit(100)
     .returns<RawRow[]>();

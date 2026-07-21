@@ -31,6 +31,11 @@ export function taipeiYmd(iso: string): string {
   return ymdFmt.format(new Date(iso));
 }
 
+/** 今天（台北時間）的 YYYY-MM-DD */
+export function taipeiToday(): string {
+  return ymdFmt.format(new Date());
+}
+
 /** 純日期字串（YYYY-MM-DD）→ 星期幾（週一...週日），UTC 錨點解析，不受時區影響 */
 export function weekdayLabelOfYmd(ymd: string): string {
   return weekdayFmt.format(new Date(`${ymd}T12:00:00+08:00`));
@@ -71,7 +76,7 @@ function addDaysToYmd(ymd: string, days: number): string {
 
 /** 這週一（台北時間）的 YYYY-MM-DD */
 export function taipeiThisMonday(): string {
-  const todayYmd = ymdFmt.format(new Date());
+  const todayYmd = taipeiToday();
   const anchor = new Date(`${todayYmd}T00:00:00Z`);
   const dow = anchor.getUTCDay(); // 0=Sun..6=Sat，UTC 錨點解析，跟伺服器時區無關
   const diffToMonday = dow === 0 ? -6 : 1 - dow;
@@ -90,7 +95,7 @@ export function taipeiDayBoundaryISO(ymd: string): string {
 
 /** 「明天」這一整個台北日曆日的起訖邊界（給課前提醒用） */
 export function taipeiTomorrowRangeISO(): { start: string; end: string } {
-  const todayYmd = ymdFmt.format(new Date());
+  const todayYmd = taipeiToday();
   const tomorrowYmd = addDaysToYmd(todayYmd, 1);
   const dayAfterYmd = addDaysToYmd(todayYmd, 2);
   return {
