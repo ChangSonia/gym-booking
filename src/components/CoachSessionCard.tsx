@@ -84,6 +84,9 @@ export default function CoachSessionCard({
       const json = await res.json();
       if (!res.ok) throw new Error(errorText(json.error));
       onChanged();
+      // 教練這邊的操作可能剛好影響到「自己」的報名狀態（例如踢掉的人剛好是自己在測試）
+      // 課表頁/我的課表頁用的是同一份 LiffAuthProvider 資料，這裡也要跟著刷新
+      await auth.refresh();
       return true;
     } catch (e) {
       setErr(e instanceof Error ? e.message : "操作失敗，請稍後再試");
@@ -135,39 +138,39 @@ export default function CoachSessionCard({
     if (ok) setKickTarget(null);
   }
 
+  async function runSearch(value: string) {
+    if (auth.status !== "ready") return;
+    setSearching(true);
+    try {
+      const res = await fetch("/api/coach/users/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: auth.idToken, query: value }),
+      });
+      const json = await res.json();
+      if (res.ok) setSearchResults(json.users);
+    } catch {
+      // 搜尋失敗就當作沒結果，使用者可以再試一次
+    } finally {
+      setSearching(false);
+    }
+  }
+
   function openBook() {
     setBooking(true);
     setSearchQuery("");
     setSearchResults(null);
     setSelectedUser(null);
     setBookQty(1);
+    // 一開啟就先給一份預設名單，像下拉選單一樣，不用先打字才看得到人
+    runSearch("");
   }
 
   function onSearchInput(value: string) {
     setSearchQuery(value);
     setSelectedUser(null);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!value.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    searchTimer.current = setTimeout(async () => {
-      if (auth.status !== "ready") return;
-      setSearching(true);
-      try {
-        const res = await fetch("/api/coach/users/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken: auth.idToken, query: value }),
-        });
-        const json = await res.json();
-        if (res.ok) setSearchResults(json.users);
-      } catch {
-        // 搜尋失敗就當作沒結果，使用者可以再試一次
-      } finally {
-        setSearching(false);
-      }
-    }, 350);
+    searchTimer.current = setTimeout(() => runSearch(value), 300);
   }
 
   async function doBook() {
@@ -204,17 +207,9 @@ export default function CoachSessionCard({
         ) : (
           <ul className="flex flex-col gap-0.5">
             {confirmed.map((b) => (
-              <li key={b.id} className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="flex-1">
-                  {b.display_name ?? "（無名稱）"}
-                  {b.qty > 1 ? ` · ${b.qty} 位` : ""}
-                </span>
-                <button
-                  onClick={() => setKickTarget(b)}
-                  className="shrink-0 text-xs font-medium text-gray-400"
-                >
-                  取消
-                </button>
+              <li key={b.id} className="text-sm text-gray-700">
+                {b.display_name ?? "（無名稱）"}
+                {b.qty > 1 ? ` · ${b.qty} 位` : ""}
               </li>
             ))}
           </ul>
@@ -228,24 +223,16 @@ export default function CoachSessionCard({
           </p>
           <ul className="flex flex-col gap-0.5">
             {waitlisted.map((b) => (
-              <li key={b.id} className="flex items-center gap-2 text-sm text-gray-700">
-                <span className="flex-1">
-                  {b.wl_position}. {b.display_name ?? "（無名稱）"}
-                  {b.qty > 1 ? ` · ${b.qty} 位` : ""}
-                </span>
-                <button
-                  onClick={() => setKickTarget(b)}
-                  className="shrink-0 text-xs font-medium text-gray-400"
-                >
-                  取消
-                </button>
+              <li key={b.id} className="text-sm text-gray-700">
+                {b.wl_position}. {b.display_name ?? "（無名稱）"}
+                {b.qty > 1 ? ` · ${b.qty} 位` : ""}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {err && <p className="mb-2 text-xs text-[#C8102E]">{err}</p>}
+      {err && !editing && <p className="mb-2 text-xs text-[#C8102E]">{err}</p>}
 
       <div className="mt-1 flex gap-1.5">
         <button
@@ -262,23 +249,6 @@ export default function CoachSessionCard({
             className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600"
           >
             代報名
-          </button>
-        )}
-        {session.status === "scheduled" ? (
-          <button
-            onClick={() => setConfirmCancel(true)}
-            disabled={busy}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#C8102E]"
-          >
-            停課
-          </button>
-        ) : (
-          <button
-            onClick={restoreSession}
-            disabled={busy}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            恢復
           </button>
         )}
       </div>
@@ -339,7 +309,7 @@ export default function CoachSessionCard({
 
             {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
 
-            <div className="flex gap-3">
+            <div className="mb-4 flex gap-3">
               <button
                 onClick={() => setEditing(false)}
                 disabled={busy}
@@ -354,6 +324,80 @@ export default function CoachSessionCard({
               >
                 {busy ? "處理中..." : "確認"}
               </button>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="mb-1 text-xs font-semibold text-gray-500">
+                已報名 {confirmedTotal} 人
+              </p>
+              {confirmed.length === 0 ? (
+                <p className="mb-3 text-xs text-gray-300">還沒有人報名</p>
+              ) : (
+                <ul className="mb-3 flex flex-col gap-0.5">
+                  {confirmed.map((b) => (
+                    <li
+                      key={b.id}
+                      className="flex items-center gap-2 text-sm text-gray-700"
+                    >
+                      <span className="flex-1">
+                        {b.display_name ?? "（無名稱）"}
+                        {b.qty > 1 ? ` · ${b.qty} 位` : ""}
+                      </span>
+                      <button
+                        onClick={() => setKickTarget(b)}
+                        className="shrink-0 text-xs font-medium text-gray-400"
+                      >
+                        取消
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {waitlisted.length > 0 && (
+                <>
+                  <p className="mb-1 text-xs font-semibold text-[#8A5D00]">
+                    候補 {waitlistedTotal} 人
+                  </p>
+                  <ul className="mb-3 flex flex-col gap-0.5">
+                    {waitlisted.map((b) => (
+                      <li
+                        key={b.id}
+                        className="flex items-center gap-2 text-sm text-gray-700"
+                      >
+                        <span className="flex-1">
+                          {b.wl_position}. {b.display_name ?? "（無名稱）"}
+                          {b.qty > 1 ? ` · ${b.qty} 位` : ""}
+                        </span>
+                        <button
+                          onClick={() => setKickTarget(b)}
+                          className="shrink-0 text-xs font-medium text-gray-400"
+                        >
+                          取消
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {session.status === "scheduled" ? (
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  disabled={busy}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-[#C8102E]"
+                >
+                  停課
+                </button>
+              ) : (
+                <button
+                  onClick={restoreSession}
+                  disabled={busy}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white"
+                >
+                  恢復
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -376,12 +420,12 @@ export default function CoachSessionCard({
             {!selectedUser ? (
               <>
                 <label className="mb-2 block text-sm text-gray-600">
-                  搜尋會員（只能選已經登入過系統的人）
+                  選會員（只能選已經登入過系統的人，可以打字縮小範圍）
                 </label>
                 <input
                   value={searchQuery}
                   onChange={(e) => onSearchInput(e.target.value)}
-                  placeholder="輸入名字關鍵字"
+                  placeholder="輸入名字關鍵字，或直接從下面選"
                   className="mb-3 h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
                   autoFocus
                 />

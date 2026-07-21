@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { requireCoach, authErrorResponse } from "@/lib/line-auth";
-import {
-  notifyPromoted,
-  notifySessionMembers,
-  formatSessionLine,
-} from "@/lib/line-messaging";
+import { notifyPromoted } from "@/lib/line-messaging";
 
 export async function POST(
   req: NextRequest,
@@ -35,7 +31,7 @@ export async function POST(
 
   const { data: current, error: fetchError } = await supabaseAdmin
     .from("sessions")
-    .select("capacity, coach_id, title, starts_at")
+    .select("capacity")
     .eq("id", sessionId)
     .single();
 
@@ -67,7 +63,6 @@ export async function POST(
   }
 
   const capacityIncreased = capacity > current.capacity;
-  const coachChanged = coachId !== current.coach_id;
 
   const { error: updateError } = await supabaseAdmin
     .from("sessions")
@@ -84,21 +79,6 @@ export async function POST(
       p_session_id: sessionId,
     });
     await notifyPromoted(sessionId, promoted ?? []);
-  }
-
-  if (coachChanged) {
-    const { data: newCoach } = coachId
-      ? await supabaseAdmin.from("coaches").select("name").eq("id", coachId).single()
-      : { data: null };
-    const line = formatSessionLine(
-      current.title,
-      newCoach?.name ?? null,
-      current.starts_at,
-    );
-    await notifySessionMembers(
-      sessionId,
-      `🔄 教練異動\n${line}\n已經報名／候補的人請留意。`,
-    );
   }
 
   return NextResponse.json({ ok: true });

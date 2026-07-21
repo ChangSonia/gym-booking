@@ -16,16 +16,20 @@ export async function POST(req: NextRequest) {
   }
 
   const q = query.trim();
-  if (!q) {
-    return NextResponse.json({ users: [] });
-  }
 
-  const { data, error } = await supabaseAdmin
+  // 沒打字的時候給一份預設名單（最近活躍的人），而不是空的——
+  // 這樣一開啟就像個下拉選單，打字才是用來縮小範圍
+  let builder = supabaseAdmin
     .from("users")
     .select("id, display_name, picture_url")
-    .ilike("display_name", `%${q}%`)
-    .order("display_name", { ascending: true })
-    .limit(20);
+    .order(q ? "display_name" : "last_seen_at", { ascending: !!q })
+    .limit(30);
+
+  if (q) {
+    builder = builder.ilike("display_name", `%${q}%`);
+  }
+
+  const { data, error } = await builder;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
