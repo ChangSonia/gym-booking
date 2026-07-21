@@ -22,3 +22,9 @@ export type CoachOption = {
   id: number;
   name: string;
 };
+
+export type UserOption = {
+  id: number;
+  display_name: string | null;
+  picture_url: string | null;
+};

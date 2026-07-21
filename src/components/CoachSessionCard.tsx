@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLiffAuth } from "@/components/LiffAuthProvider";
-import type { CoachSession, CoachOption, RosterBooking } from "@/lib/coach-types";
+import type {
+  CoachSession,
+  CoachOption,
+  RosterBooking,
+  UserOption,
+} from "@/lib/coach-types";
 import { taipeiMonthDayTime } from "@/lib/date";
 
 const MAXCAP = 60;
+const MAXQ = 4;
 
 function errorText(code?: string): string {
   switch (code) {
@@ -13,6 +19,14 @@ function errorText(code?: string): string {
       return "名額不能低於已報名人數";
     case "INVALID_CAPACITY":
       return "名額不能小於 1";
+    case "INVALID_QTY":
+      return "人數不對，最多 4 位";
+    case "ALREADY_BOOKED":
+      return "這位學員已經報名過這堂課了";
+    case "SESSION_CANCELLED":
+      return "這堂課已停課";
+    case "NOT_OPEN_YET":
+      return "還沒到開放報名時間";
     case "SESSION_NOT_FOUND":
       return "找不到這堂課";
     case "BOOKING_NOT_FOUND":
@@ -41,6 +55,14 @@ export default function CoachSessionCard({
   const [editCapacity, setEditCapacity] = useState(session.capacity);
   const [editCoachId, setEditCoachId] = useState<number | null>(session.coachId);
   const [coachOptions, setCoachOptions] = useState<CoachOption[] | null>(null);
+
+  const [booking, setBooking] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<UserOption[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserOption | null>(null);
+  const [bookQty, setBookQty] = useState(1);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirmed = session.bookings.filter((b) => b.status === "confirmed");
   const waitlisted = session.bookings
@@ -111,6 +133,50 @@ export default function CoachSessionCard({
     if (!kickTarget) return;
     const ok = await call(`/api/coach/bookings/${kickTarget.id}/cancel`, {});
     if (ok) setKickTarget(null);
+  }
+
+  function openBook() {
+    setBooking(true);
+    setSearchQuery("");
+    setSearchResults(null);
+    setSelectedUser(null);
+    setBookQty(1);
+  }
+
+  function onSearchInput(value: string) {
+    setSearchQuery(value);
+    setSelectedUser(null);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (!value.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      if (auth.status !== "ready") return;
+      setSearching(true);
+      try {
+        const res = await fetch("/api/coach/users/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: auth.idToken, query: value }),
+        });
+        const json = await res.json();
+        if (res.ok) setSearchResults(json.users);
+      } catch {
+        // 搜尋失敗就當作沒結果，使用者可以再試一次
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
+  }
+
+  async function doBook() {
+    if (!selectedUser) return;
+    const ok = await call(`/api/coach/sessions/${session.id}/book`, {
+      userId: selectedUser.id,
+      qty: bookQty,
+    });
+    if (ok) setBooking(false);
   }
 
   return (
@@ -189,6 +255,15 @@ export default function CoachSessionCard({
         >
           編輯
         </button>
+        {session.status === "scheduled" && (
+          <button
+            onClick={openBook}
+            disabled={busy}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600"
+          >
+            代報名
+          </button>
+        )}
         {session.status === "scheduled" ? (
           <button
             onClick={() => setConfirmCancel(true)}
@@ -280,6 +355,139 @@ export default function CoachSessionCard({
                 {busy ? "處理中..." : "確認"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {booking && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+          onClick={() => !busy && setBooking(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-5 sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 text-lg font-bold">代報名</h2>
+            <p className="mb-4 text-sm text-gray-500">
+              {session.title}・{taipeiMonthDayTime(session.starts_at)}
+            </p>
+
+            {!selectedUser ? (
+              <>
+                <label className="mb-2 block text-sm text-gray-600">
+                  搜尋會員（只能選已經登入過系統的人）
+                </label>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => onSearchInput(e.target.value)}
+                  placeholder="輸入名字關鍵字"
+                  className="mb-3 h-11 w-full rounded-xl border border-gray-200 px-3 text-sm"
+                  autoFocus
+                />
+                {searching && <p className="text-sm text-gray-400">搜尋中...</p>}
+                {!searching && searchResults !== null && searchResults.length === 0 && (
+                  <p className="text-sm text-gray-300">找不到符合的會員</p>
+                )}
+                {searchResults && searchResults.length > 0 && (
+                  <ul className="max-h-60 overflow-y-auto rounded-xl border border-gray-100">
+                    {searchResults.map((u) => (
+                      <li key={u.id}>
+                        <button
+                          onClick={() => setSelectedUser(u)}
+                          className="flex w-full items-center gap-2 border-b border-gray-100 px-3 py-2.5 text-left text-sm last:border-b-0"
+                        >
+                          {u.picture_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.picture_url}
+                              alt=""
+                              width={24}
+                              height={24}
+                              className="rounded-full"
+                            />
+                          )}
+                          <span>{u.display_name ?? "（無名稱）"}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-4">
+                  <button
+                    onClick={() => setBooking(false)}
+                    disabled={busy}
+                    className="h-[46px] w-full rounded-xl border border-gray-200 text-[15px] font-medium text-gray-600"
+                  >
+                    取消
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5">
+                  {selectedUser.picture_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={selectedUser.picture_url}
+                      alt=""
+                      width={28}
+                      height={28}
+                      className="rounded-full"
+                    />
+                  )}
+                  <span className="text-sm font-semibold">
+                    {selectedUser.display_name ?? "（無名稱）"}
+                  </span>
+                  <button
+                    onClick={() => setSelectedUser(null)}
+                    className="ml-auto text-xs font-medium text-gray-400"
+                  >
+                    重選
+                  </button>
+                </div>
+
+                <label className="mb-2 block text-sm text-gray-600">報名人數</label>
+                <div className="mb-4 flex items-center justify-center gap-0">
+                  <button
+                    onClick={() => setBookQty((q) => Math.max(1, q - 1))}
+                    disabled={bookQty <= 1}
+                    className="h-12 w-12 rounded-l-xl border border-gray-200 text-xl disabled:text-gray-300"
+                  >
+                    －
+                  </button>
+                  <span className="flex h-12 w-16 items-center justify-center border-y border-gray-200 font-mono text-lg font-semibold">
+                    {bookQty}
+                  </span>
+                  <button
+                    onClick={() => setBookQty((q) => Math.min(MAXQ, q + 1))}
+                    disabled={bookQty >= MAXQ}
+                    className="h-12 w-12 rounded-r-xl border border-gray-200 text-xl disabled:text-gray-300"
+                  >
+                    ＋
+                  </button>
+                </div>
+
+                {err && <p className="mb-3 text-sm text-[#C8102E]">{err}</p>}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setBooking(false)}
+                    disabled={busy}
+                    className="h-[46px] flex-1 rounded-xl border border-gray-200 text-[15px] font-medium text-gray-600"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={doBook}
+                    disabled={busy}
+                    className="h-[46px] flex-1 rounded-xl bg-blue-600 text-[15px] font-semibold text-white"
+                  >
+                    {busy ? "處理中..." : "確認代報名"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
