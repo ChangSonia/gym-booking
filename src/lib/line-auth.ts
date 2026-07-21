@@ -1,8 +1,20 @@
 import "server-only";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { AuthedUser, MyBooking } from "@/lib/auth-types";
 
 export class AuthError extends Error {}
+
+// 共用的錯誤轉 HTTP response，FORBIDDEN 是權限不夠（403），其他都是身分驗證失敗（401）
+export function authErrorResponse(e: unknown) {
+  if (e instanceof AuthError) {
+    return NextResponse.json(
+      { error: e.message },
+      { status: e.message === "FORBIDDEN" ? 403 : 401 },
+    );
+  }
+  return NextResponse.json({ error: "INTERNAL_ERROR" }, { status: 500 });
+}
 
 // 驗證 LIFF 拿到的 ID Token，取得可信的 line_user_id。
 // 絕對不要相信前端直接傳來的 userId —— 任何需要身分的動作都要重新走這一關。
@@ -48,6 +60,15 @@ export async function resolveLineUser(idToken: string): Promise<AuthedUser> {
 export async function requireCoach(idToken: string): Promise<AuthedUser> {
   const user = await resolveLineUser(idToken);
   if (!user.is_coach && !user.is_admin) {
+    throw new AuthError("FORBIDDEN");
+  }
+  return user;
+}
+
+// 管理員權限（管教練名單、設定誰是教練）也一定要在後端驗證
+export async function requireAdmin(idToken: string): Promise<AuthedUser> {
+  const user = await resolveLineUser(idToken);
+  if (!user.is_admin) {
     throw new AuthError("FORBIDDEN");
   }
   return user;

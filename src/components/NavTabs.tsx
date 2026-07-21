@@ -9,10 +9,12 @@ export default function NavTabs() {
   const pathname = usePathname();
   const isCoach =
     auth.status === "ready" && (auth.user.is_coach || auth.user.is_admin);
+  const isAdmin = auth.status === "ready" && auth.user.is_admin;
 
   const tabs = [
     { href: "/", label: "課表" },
     ...(isCoach ? [{ href: "/coach", label: "教練" }] : []),
+    ...(isAdmin ? [{ href: "/admin", label: "管理" }] : []),
   ];
 
   if (tabs.length < 2) return null;
